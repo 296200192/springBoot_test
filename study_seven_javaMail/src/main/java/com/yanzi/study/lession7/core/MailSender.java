@@ -2,8 +2,12 @@ package com.yanzi.study.lession7.core;
 
 import com.yanzi.study.lession7.entity.MailEntity;
 import com.yanzi.study.lession7.enums.MailContentTypeEnum;
-import org.apache.logging.log4j.util.PropertiesUtil;
+import com.yanzi.study.lession7.utils.PropertiesUtil;
 
+import javax.mail.*;
+import javax.mail.internet.InternetAddress;
+import javax.mail.internet.MimeMessage;
+import javax.mail.internet.MimeUtility;
 import java.util.List;
 import java.util.Properties;
 
@@ -71,10 +75,56 @@ public class MailSender {
         //表示SMTP发送邮箱，必须进行身份验证
         props.put("mail.smtp.auth","true");
         //此处填写SMTP服务器
-        props.put("mail.smtp.host",properties.getStringProperty("mail.smtp.service"));
+        props.put("mail.smtp.host",properties.getValue("mail.smtp.service"));
+        //设置端口号，QQ邮箱给出了两个端口465/587
+        props.put("mail.smtp.port", properties.getValue("mail.smtp.prot"));
+        // 设置发送邮箱
+        props.put("mail.user", properties.getValue("mail.from.address"));
+        // 设置发送邮箱的16位STMP口令
+        props.put("mail.password", properties.getValue("mail.from.smtp.pwd"));
 
+        //构建授权信息，用于进行SMTP进行身份验证
+        Authenticator authenticator = new Authenticator() {
+            protected PasswordAuthentication getPasswordAuthentication() {
+                //用户名、密码
+                String userName = props.getProperty("mail.user");
+                String passWord = props.getProperty("mail.password");
+                return new PasswordAuthentication(userName,passWord);
+            }
+        };
 
+        //使用环境属性和授权信息，创建邮件会话
+        Session mailSession = Session.getInstance(props,authenticator);
+        //创建邮件信息
+        MimeMessage message = new MimeMessage(mailSession);
+        //设置发件人
+        String nickName = MimeUtility.encodeText(properties.getValue("mail.from.nickname"));
+        InternetAddress from = new InternetAddress(nickName+"<"+props.getProperty("mail.user")+">");
+        message.setFrom(from);
+
+        //设置邮件标题
+        message.setSubject(mail.getTitle());
+        //HTML发送邮件
+        if(mail.getContentType().equals(MailContentTypeEnum.HTML.getValue())){
+            //设置邮件的内容体
+            message.setText(mail.getContent());
+        }
+        //文本发送邮件
+        else if(mail.getContentType().equals(MailContentTypeEnum.TEXT.getValue())){
+            message.setText(mail.getContent());
+        }
+        //发送邮箱地址
+        List<String> targets = mail.getList();
+        for (int i = 0;i < targets.size();i++){
+            try {
+                //设置收件人的邮箱
+                InternetAddress to = new InternetAddress(targets.get(i));
+                message.setRecipient(Message.RecipientType.TO,to);
+                //发送
+                Transport.send(message);
+            }catch (Exception e){
+                continue;
+            }
+        }
     }
-
-
 }
